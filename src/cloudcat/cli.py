@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 
 from cloudcat.config import load_config
 from cloudcat.providers import PROVIDER_NAMES, get_provider
-from cloudcat.utils import estimated_cost, format_table, format_uptime
+from cloudcat.utils import estimated_cost, format_table, format_uptime, generate_label
+
+BOOT_TIMEOUT_SECONDS = 600
 
 # GPU families - vast.ai gpu_name values grouped by hashcat-relevant generations.
 # These names may need adjustment if vast.ai changes their naming.
@@ -48,7 +50,7 @@ def cmd_search(args: argparse.Namespace) -> None:
 
     rows: list[list[str]] = []
     for o in offers:
-        offer_id = str(o.get("machine_id", "-"))
+        offer_id = str(o.get("id", "-"))
         gpu = o.get("gpu_name") or "-"
         ram_mb = o.get("gpu_ram")
         ram_str = f"{int(ram_mb) // 1024}GB" if ram_mb else "-"
@@ -58,7 +60,7 @@ def cmd_search(args: argparse.Namespace) -> None:
         debug = str(o.get("gpu_arch")) or "-"
         rows.append([offer_id, gpu, ram_str, n, dph_str, debug])
 
-    headers = ["ID", "GPU Name", "GPU RAM", "Num GPUs", "$/hr", "Debug"]
+    headers = ["Offer ID", "GPU Name", "GPU RAM", "Num GPUs", "$/hr", "Debug"]
     print(format_table(headers, rows))
 
 
@@ -96,6 +98,101 @@ def cmd_list(args: argparse.Namespace) -> None:
     print(format_table(headers, rows))
 
 
+def _ssh_argv(host: str, port: int, key: str | None) -> list[str]:
+    argv = ["ssh", f"root@{host}", "-p", str(port)]
+    if key:
+        argv += ["-i", os.path.expanduser(key)]
+    return argv
+
+
+def cmd_create(args: argparse.Namespace) -> None:
+    config = load_config()
+    template_hash = config.require_template_hash()
+    # Resolve the SSH key before spending money, so a misconfigured key
+    # fails fast instead of after the instance has booted and started billing.
+    ssh_key = args.key or config.require_ssh_key()
+    provider = get_provider(args.provider, config)
+
+    label = generate_label()
+    print(f"Creating instance (offer={args.offer_id}, label={label})...")
+    instance_id = provider.create_instance(
+        offer_id=args.offer_id,
+        template_id=template_hash,
+        label=label,
+    )
+    print(f"Instance {instance_id} created. Waiting for boot...")
+
+    ready = provider.wait_for_ready(instance_id, timeout=BOOT_TIMEOUT_SECONDS)
+    if not ready:
+        print(
+            f"Instance {instance_id} failed to reach 'running' state. "
+            "Destroying to stop billing."
+        )
+        provider.destroy_instance(instance_id)
+        raise SystemExit(1)
+
+    host, port = provider.get_ssh_info(instance_id)
+    argv = _ssh_argv(host, port, ssh_key)
+    print(f"Instance ready. Label: {label}  Instance ID: {instance_id}")
+    print(f"Connecting: {' '.join(argv)}")
+    os.execvp("ssh", argv)
+
+
+def _find_instance_by_label(provider, label: str) -> dict:
+    instances = provider.list_instances(label_prefix="cc-")
+    match = next((i for i in instances if i.get("label") == label), None)
+    if match is None:
+        raise SystemExit(f"No instance found with label {label!r}.")
+    return match
+
+
+def cmd_pull(args: argparse.Namespace) -> None:
+    config = load_config()
+    provider = get_provider(args.provider, config)
+
+    match = _find_instance_by_label(provider, args.label)
+    instance_id = str(match.get("id"))
+
+    print(f"Pulling {len(args.paths)} file(s) from {args.label} ({instance_id})...")
+    provider.pull_files(instance_id, args.paths, local_dir="./")
+
+
+def cmd_ssh(args: argparse.Namespace) -> None:
+    config = load_config()
+    provider = get_provider(args.provider, config)
+
+    match = _find_instance_by_label(provider, args.label)
+    instance_id = str(match.get("id"))
+    status = match.get("actual_status")
+    if status != "running":
+        raise SystemExit(
+            f"Instance {args.label} ({instance_id}) is not running "
+            f"(status={status!r})."
+        )
+
+    ssh_key = args.key or config.require_ssh_key()
+    host, port = provider.get_ssh_info(instance_id)
+    argv = _ssh_argv(host, port, ssh_key)
+    print(f"Connecting: {' '.join(argv)}")
+    os.execvp("ssh", argv)
+
+
+def cmd_destroy(args: argparse.Namespace) -> None:
+    config = load_config()
+    provider = get_provider(args.provider, config)
+
+    match = _find_instance_by_label(provider, args.label)
+    instance_id = str(match.get("id"))
+
+    if args.pull:
+        print(f"Pulling {len(args.pull)} file(s) from {args.label} ({instance_id})...")
+        provider.pull_files(instance_id, args.pull, local_dir="./")
+
+    print(f"Destroying instance {args.label} ({instance_id})...")
+    provider.destroy_instance(instance_id)
+    print(f"Destroyed {args.label}.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cloudcat",
@@ -128,7 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.add_argument(
         "--number",
         default="1",
-        help="Number of GPUs per instance (default: 1)",
+        help="Min number of GPUs per instance (default: 1)",
     )
     p_search.add_argument(
         "--limit",
@@ -147,6 +244,70 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show all instances, not just those with the cc- prefix",
     )
     p_list.set_defaults(func=cmd_list)
+
+    # Create command - rents an offer, waits for boot, and execs into ssh.
+
+    p_create = subparsers.add_parser("create", help="Create an instance from an offer and SSH in")
+    p_create.add_argument(
+        "--offer-id",
+        type=int,
+        required=True,
+        help="Offer ID from `cloudcat search` output",
+    )
+    p_create.add_argument(
+        "--key",
+        "-i",
+        help="Path to SSH private key (passed to ssh -i). Defaults to $CLOUDCAT_SSH_KEY.",
+    )
+    p_create.set_defaults(func=cmd_create)
+
+    # Destroy command - pulls files (if --pull given) then destroys the instance.
+
+    p_destroy = subparsers.add_parser("destroy", help="Pull files from an instance and destroy it")
+    p_destroy.add_argument(
+        "--label",
+        required=True,
+        help="Label of the instance to destroy (e.g. cc-a3f7)",
+    )
+    p_destroy.add_argument(
+        "--pull",
+        action="append",
+        default=[],
+        metavar="REMOTE_PATH",
+        help="Remote file path to download before destroy (repeatable)",
+    )
+    p_destroy.set_defaults(func=cmd_destroy)
+
+    # Pull command - download files from a running instance without destroying it.
+
+    p_pull = subparsers.add_parser("pull", help="Download files from an instance")
+    p_pull.add_argument(
+        "--label",
+        required=True,
+        help="Label of the instance to pull from (e.g. cc-a3f7)",
+    )
+    p_pull.add_argument(
+        "paths",
+        nargs="+",
+        metavar="REMOTE_PATH",
+        help="One or more remote file paths to download into the current directory",
+    )
+    p_pull.set_defaults(func=cmd_pull)
+
+    # SSH command - reconnect to a running instance by label.
+
+    p_ssh = subparsers.add_parser("ssh", help="SSH into a running instance by label")
+    p_ssh.add_argument(
+        "--label",
+        required=True,
+        help="Label of the instance to connect to (e.g. cc-a3f7)",
+    )
+    p_ssh.add_argument(
+        "--key",
+        "-i",
+        help="Path to SSH private key (passed to ssh -i). Defaults to $CLOUDCAT_SSH_KEY.",
+    )
+    p_ssh.set_defaults(func=cmd_ssh)
 
     return parser
 
