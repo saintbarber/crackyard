@@ -1,4 +1,3 @@
-import itertools
 import sys
 import time
 
@@ -6,6 +5,7 @@ from vastai import VastAI
 
 from crackyard.config import config_path
 from crackyard.providers.base import Provider
+from crackyard.utils import SPINNER_FRAMES
 
 _BOOT_ERROR_STATES = {"exited", "unknown", "offline"}
 
@@ -70,35 +70,32 @@ class VastAIProvider(Provider):
         return str(instance_id)
 
     def wait_for_ready(self, instance_id: str) -> bool:
-        spinner = itertools.cycle("|/-\\")
-        deadline = time.time() + self.create_settings.get("timeout", 600)  # seconds
-        status = "?"
+        deadline = time.time() + self.create_settings.get("timeout", 600)
         start = time.time()
+        next_poll = 0.0
+        status = "?"
+        frame = 0
         tty = sys.stdout.isatty()
-        last_poll = 0.0
+
         try:
             while time.time() < deadline:
-                if time.time() - last_poll >= 10 or last_poll == 0.0:
+                if time.time() >= next_poll:
                     info = self.vast.show_instance(id=int(instance_id)) or {}
                     status = info.get("actual_status") or "?"
-                    last_poll = time.time()
                     if status == "running":
-                        if tty:
-                            sys.stdout.write("\r\033[K")
-                            sys.stdout.flush()
                         return True
                     if status in _BOOT_ERROR_STATES:
-                        if tty:
-                            sys.stdout.write("\r\033[K")
-                            sys.stdout.flush()
                         return False
-                elapsed = int(time.time() - start)
+                    next_poll = time.time() + 10
+
                 if tty:
+                    elapsed = int(time.time() - start)
                     sys.stdout.write(
-                        f"\r {next(spinner)} waiting for instance "
-                        f"(status={status}, {elapsed}s)"
+                        f"\r {SPINNER_FRAMES[frame % len(SPINNER_FRAMES)]} "
+                        f"Waiting for instance (status={status}, {elapsed}s)"
                     )
                     sys.stdout.flush()
+                    frame += 1
                 time.sleep(0.1)
         finally:
             if tty:
