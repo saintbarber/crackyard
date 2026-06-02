@@ -70,21 +70,22 @@ api_key = "your_api_key_here"
 
 **`config.toml`:**
 ```toml
+# crackyard configuration
 provider = "vastai"            # default provider; override with --provider
 
 [vastai]
-template_hash = "your_template_hash_here"
-ssh_key = "~/.ssh/id_ed25519"
+ssh_key = "~/.ssh/vast.ai"  # default key for create/ssh; override with --key/-i
 
 [vastai.search]
+# vast.ai query filter fragments, ANDed together. Edit to taste.
 filters = [
-    "gpu_arch=nvidia",
-    "gpu_frac=1.0",
-    "reliability>=0.9",
-    "verified=true",
-    "rentable=true",
-    "direct_port_count>=1",
-    "disk_space>=20",
+    "gpu_arch=nvidia",         # only NVIDIA GPUs
+    "gpu_frac=1.0",            # only whole GPUs (no fractional rentals)
+    "reliability>=0.9",        # only hosts with good uptime history
+    "verified=true",           # only hosts verified by vast.ai staff 
+    "rentable=true",           # only hosts that are currently rentable
+    "direct_port_count>=1",    # only hosts with at least 1 direct port (for SSH)
+    "disk_space>=20",          # only hosts with at least 20 GB of disk space (for our default template)
 ]
 order = "dph_total"            # sort key (cheapest first)
 limit = 20                     # default for --limit
@@ -92,6 +93,7 @@ number = 1                     # default for --number (min GPUs)
 
 [vastai.create]
 disk = 20                      # GB; keep >= the disk_space filter above
+image = "saintbarber/vastai-hashcat:latest" # image used to setup hashcat in docker container, visit https://github.com/saintbarber/vastai-hashcat for more details
 ```
 
 If a required value is missing, crackyard tells you exactly which file and key to set.
