@@ -146,6 +146,8 @@ crackyard search --gpu-family rtx-40 --number 2 --limit 30
 | `--gpu-family` | A family of GPUs: `rtx-50`, `rtx-40`, `rtx-30`, `hopper`, `ampere-dc` |
 | `--number` | Minimum number of GPUs per instance (default: `number` in `config.toml`, else 1) |
 | `--limit` | Max results to show (default: `limit` in `config.toml`, else 20) |
+| `--secure-cloud` | Only show offers which use secure datacenters |
+
 
 `--gpu` and `--gpu-family` are mutually exclusive. Results are filtered to verified, rentable, reliable offers with direct ports and adequate disk, and sorted by price ascending. Note the **Offer ID** column, you'll need it to create an instance.
 
