@@ -8,7 +8,6 @@ CONFIG_TEMPLATE = """\
 provider = "vastai"            # default provider; override with --provider
 
 [vastai]
-image = "saintbarber/vastai-hashcat:latest"             # required for `crackyard create`
 ssh_key = "~/.ssh/vast.ai"  # default key for create/ssh; override with --key/-i
 
 [vastai.search]
@@ -28,6 +27,7 @@ number = 1                     # default for --number (min GPUs)
 
 [vastai.create]
 disk = 20                      # GB; keep >= the disk_space filter above
+image = "saintbarber/vastai-hashcat:latest"
 """
 
 CREDENTIALS_TEMPLATE = """\
