@@ -46,6 +46,7 @@ def cmd_search(args: argparse.Namespace, config: Config) -> None:
         gpu_names=gpu_names,
         num_gpus=int(number),
         limit=limit,
+        secure_cloud=args.secure_cloud,
     )
 
     if not offers:
@@ -61,10 +62,10 @@ def cmd_search(args: argparse.Namespace, config: Config) -> None:
         n = str(o.get("num_gpus", "-"))
         dph = o.get("dph_total")
         dph_str = f"${float(dph):.3f}" if dph is not None else "-"
-        debug = str(o.get("gpu_arch")) or "-"
+        debug = str(o.get("datacenter")) or "-"
         rows.append([id_str, gpu, ram_str, n, dph_str, debug])
 
-    headers = ["ID", "GPU Name", "GPU RAM", "Num GPUs", "$/hr", "Debug"]
+    headers = ["ID", "GPU Name", "GPU RAM", "Num GPUs", "$/hr", "Secure Cloud"]
     print(format_table(headers, rows))
 
 
@@ -239,6 +240,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Maximum number of results to show (default: from config.toml, else 20)",
+    )
+    p_search.add_argument(
+        "--secure-cloud",
+        action="store_true",
+        help="Only show secure cloud (datacenter) offers",
     )
     p_search.set_defaults(func=cmd_search)
 

@@ -33,9 +33,11 @@ class VastAIProvider(Provider):
         self.ssh_key = settings.get("ssh_key") 
         # self._template_hash = settings.get("template_hash")
 
-    def search_offers(self, gpu_names: list[str] | None, num_gpus: int | None, limit: int) -> list[dict]:
+    def search_offers(self, gpu_names: list[str] | None, num_gpus: int | None, limit: int, secure_cloud: bool = False, **kwargs) -> list[dict]:
         query_parts = list(self.search_settings.get("filters") or _DEFAULT_FILTERS)
 
+        if secure_cloud:
+            query_parts.append("datacenter=true")
         if gpu_names:
             if len(gpu_names) == 1:
                 query_parts.append(f"gpu_name={gpu_names[0]}")

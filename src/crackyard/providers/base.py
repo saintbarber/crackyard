@@ -8,6 +8,7 @@ class Provider(ABC):
         gpu_names: list[str] | None,
         num_gpus: int | None,
         limit: int,
+        **kwargs,
     ) -> list[dict]: ...
 
     @abstractmethod
