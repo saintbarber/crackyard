@@ -8,7 +8,7 @@ CONFIG_TEMPLATE = """\
 provider = "vastai"            # default provider; override with --provider
 
 [vastai]
-template_hash = ""             # required for `crackyard create`
+image = "saintbarber/vastai-hashcat:latest"             # required for `crackyard create`
 ssh_key = "~/.ssh/vast.ai"  # default key for create/ssh; override with --key/-i
 
 [vastai.search]
