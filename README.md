@@ -60,7 +60,7 @@ crackyard stores its configuration under `$XDG_CONFIG_HOME/crackyard/` (i.e. `~/
 - **`config.toml`** — settings and default values which you may want to tweak.
 - **`credentials`** — your API keys. Keep it private.
 
-The first time you run any command, crackyard creates both files from templates and asks you to fill them in. Set your API key in `credentials` and your template hash in `config.toml`, then re-run.
+The first time you run any command, crackyard creates both files from templates and asks you to fill them in. Set your API key in `credentials` and tweak `config.toml` to taste (the default `image` under `[vastai.create]` points at a ready-made hashcat container), then re-run.
 
 **`credentials`:**
 ```toml
@@ -149,20 +149,20 @@ crackyard search --gpu-family rtx-40 --number 2 --limit 30
 | `--secure-cloud` | Only show offers which use secure datacenters |
 
 
-`--gpu` and `--gpu-family` are mutually exclusive. Results are filtered to verified, rentable, reliable offers with direct ports and adequate disk, and sorted by price ascending. Note the **Offer ID** column, you'll need it to create an instance.
+`--gpu` and `--gpu-family` are mutually exclusive. Results are filtered to verified, rentable, reliable offers with direct ports and adequate disk, and sorted by price ascending. Note the **ID** column, you'll need it to create an instance.
 
 ### `create` — rent an instance and SSH in
 
 ```bash
-crackyard create --offer-id 1234567
-crackyard create --offer-id 1234567 --key ~/.ssh/some_other_key
+crackyard create --id 1234567
+crackyard create --id 1234567 --key ~/.ssh/some_other_key
 ```
 
-Generates a `cy-xxxx` label, rents the offer using your template hash, polls until the instance reaches `running`, then replaces the process with an SSH session. The SSH key is validated up front so a misconfigured key fails *before* anything starts billing.
+Generates a `cy-xxxx` label, rents the offer using the Docker image configured under `[vastai.create]`, polls until the instance reaches `running`, then replaces the process with an SSH session. The SSH key is validated up front so a misconfigured key fails *before* anything starts billing.
 
 | Flag | Description |
 |------|-------------|
-| `--offer-id` | **(required)** Offer ID from `search` |
+| `--id` | **(required)** Offer ID from `search` |
 | `--key`, `-i` | SSH private key path (defaults to `ssh_key` in `config.toml`) |
 
 ### `list` — see your instances
@@ -243,7 +243,7 @@ Tab completion works on every argument and flag, you can also tab completed your
 crackyard search --gpu RTX_4090
 
 # 2. Rent it and land in a shell (note the cy-xxxx label it prints)
-crackyard create --offer-id 1234567
+crackyard create --id 1234567
 
 #    ...upload your hashes/wordlists and run hashcat interactively...
 
