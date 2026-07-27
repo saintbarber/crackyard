@@ -36,4 +36,12 @@ class Provider(ABC):
     ) -> None: ...
 
     @abstractmethod
+    def push_files(
+        self,
+        instance_id: str,
+        local_paths: list[str],
+        remote_dir: str,
+    ) -> None: ...
+
+    @abstractmethod
     def destroy_instance(self, instance_id: str) -> None: ...

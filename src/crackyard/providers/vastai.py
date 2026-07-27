@@ -166,5 +166,25 @@ class VastAIProvider(Provider):
         #     except Exception as e:
         #         print(f"  WARN: failed to pull {path}: {e}")
 
+    def push_files(self, instance_id: str, local_paths: list[str], remote_dir: str) -> None:
+
+        url = self.vast.scp_url(id=int(instance_id))
+
+        if not url:
+          raise SystemExit(f"Instance {instance_id} has no SCP info yet.")
+
+        parsed = urlparse(url)             # scp://root@ssh7.vast.ai:19586
+        user = parsed.username or "root"   # "root"
+        host = parsed.hostname             # "ssh7.vast.ai"
+        port = parsed.port                 # 19586
+
+        for path in local_paths:
+            cmd = ["scp", "-i", self.ssh_key, "-P", str(port), path, f"{user}@{host}:{remote_dir}"]
+            try:
+                subprocess.run(cmd, check=True)
+                print(f"  pushed {path}")
+            except subprocess.CalledProcessError as e:
+                print(f"  WARN: failed to push {path}: {e}")
+
     def destroy_instance(self, instance_id: str) -> None:
         self.vast.destroy_instance(id=int(instance_id))

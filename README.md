@@ -19,6 +19,7 @@ vast.ai is the first (and currently only) supported provider. Furture plans are 
 - **Create** an instance from an offer, then `exec` straight into SSH.
 - **List** your crackyard instances with uptime and running cost estimates.
 - **Pull** files (potfiles, cracked hashes, etc.) off an instance.
+- **Push** files (wordlists, hashes, etc.) onto an instance.
 - **Destroy** an instance, optionally pulling files first, so billing stops cleanly.
 - **SSH** full TTY, so hashcat's interactive controls (`s`, `p`, `q`, …) all work.
 - **Tab Completion** - Simply run the completions argument to generate script
@@ -193,6 +194,20 @@ crackyard pull --label cy-a3f7 /root/hashcat.potfile /root/cracked.txt
 
 Downloads one or more remote paths into the current directory.
 
+### `push` — upload files to instance
+
+```bash
+crackyard push --label cy-a3f7 wordlist.txt hashes.txt
+crackyard push --label cy-a3f7 --remote-dir /root/data/ wordlist.txt
+```
+
+| Flag | Description |
+|------|-------------|
+| `--label` | **(required)** Instance label |
+| `--remote-dir` | Remote destination directory (default `~/`) |
+
+Uploads one or more local paths to the instance.
+
 ### `destroy` — pull files (optional) and tear down
 
 ```bash
@@ -245,7 +260,10 @@ crackyard search --gpu RTX_4090
 # 2. Rent it and land in a shell (note the cy-xxxx label it prints)
 crackyard create --id 1234567
 
-#    ...upload your hashes/wordlists and run hashcat interactively...
+# 2b. From another terminal, push your hashes/wordlists
+crackyard push --label cy-a3f7 hashes.txt wordlist.txt
+
+#    ...run hashcat interactively...
 
 # 3. Disconnected? Hop back on
 crackyard ssh --label cy-a3f7

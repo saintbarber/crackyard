@@ -147,6 +147,17 @@ def cmd_pull(args: argparse.Namespace, config: Config) -> None:
     provider.pull_files(instance_id, args.paths, local_dir="./")
 
 
+def cmd_push(args: argparse.Namespace, config: Config) -> None:
+    provider_name = args.provider or config.provider
+    provider = get_provider(provider_name, config)
+
+    match = find_instance_by_label(provider, args.label)
+    instance_id = str(match.get("id"))
+
+    print(f"Pushing {len(args.paths)} file(s) to {args.label} ({instance_id})...")
+    provider.push_files(instance_id, args.paths, remote_dir=args.remote_dir)
+
+
 def cmd_ssh(args: argparse.Namespace, config: Config) -> None:
     provider_name = args.provider or config.provider
     provider = get_provider(provider_name, config)
@@ -308,6 +319,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="One or more remote file paths to download into the current directory",
     )
     p_pull.set_defaults(func=cmd_pull)
+
+    # Push command - upload local files to a running instance.
+
+    p_push = subparsers.add_parser("push", help="Upload files to an instance")
+    p_push.add_argument(
+        "--label",
+        required=True,
+        help="Label of the instance to push to (e.g. cy-a3f7)",
+    ).completer = label_completer
+    p_push.add_argument(
+        "--remote-dir",
+        default="~/",
+        help="Remote directory to upload files into (default: home directory)",
+    )
+    p_push.add_argument(
+        "paths",
+        action="extend",
+        nargs="+",
+        metavar="LOCAL_PATH",
+        help="One or more local file paths to upload",
+    )
+    p_push.set_defaults(func=cmd_push)
 
     # SSH command - reconnect to a running instance by label.
 
